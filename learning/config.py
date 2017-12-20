@@ -54,7 +54,7 @@ tf.app.flags.DEFINE_float('mad',0.9,
 	"""move decay factor""")
 
 """testing"""
-tf.app.flags.DEFINE_float('eval_freq',600,
+tf.app.flags.DEFINE_float('evalfreq',600,
 	"""frequency of testing (seconds)""" )
 
 cfg = tf.app.flags.FLAGS 

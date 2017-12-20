@@ -18,6 +18,8 @@ def train():
 	guess = model.inference(image)
 
 	loss  = model.get_total_loss(coeff,guess)
+	
+	tf.summary.scalar('loss',loss)
 
 	operator = optimize.optimize(global_step, loss)
 
