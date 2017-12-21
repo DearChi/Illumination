@@ -13,7 +13,7 @@ def eval():
 
 	lobal_step = tf.contrib.framework.get_or_create_global_step()
 
-	image, coeff = inputs.fetch_batches(eval_flag = False)
+	image, coeff = inputs.fetch_batches(eval_flag = True)
 
 	guess = model.inference(image)
 
