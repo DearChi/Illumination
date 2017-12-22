@@ -65,7 +65,7 @@ class BatchFileWriter(object):
 image_size = 256
 
 data_path = '/home/dearchi/workspace/cgi/simulate_video/output'
-bin_data_path = '/data/illumination/baseline/'
+bin_data_path = '/data/illumination/baseline/test/'
 
 train_set = [1,2,3,4,
 	6,7,
@@ -113,6 +113,7 @@ def gen_data(prefix, image_set):
 			writer.write(
 				pack('%df27f'%image_length,*imdata, *shlist)
 			)
+			print(shlist)
 			count += 1
 
 	writer.close()

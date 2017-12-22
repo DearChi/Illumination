@@ -19,7 +19,7 @@ def layer(name,layers,input,shape,strides=[1,2,2,1],padding='SAME',outshape=None
 				result = tf.nn.tanh(result)
 			
 			elif layer == 'b':
-				mean, var = tf.nn.moments(result,[0,1,2])
+				mean, var = tf.nn.moments(result,[_ for _ in range(len(shape)-1)])
 				result = tf.nn.batch_normalization(result,mean,var,0,1,0.01)
 			
 			elif layer == 'm':
@@ -57,16 +57,16 @@ def inference(images):
 	conv_7 = layer('layer-7', 'cbr', conv_6, [3,3,256,256])
 
 	fcon_8 = layer('layer-8', 'emr', conv_7, [-1,  2048], outshape=[cfg.batchsize,-1])
-	fcon_9 = layer('layer-9', 'mr',  fcon_8, [2048, 512])
-	fcon_a = layer('layer-a', 'mr',  fcon_9, [ 512, 128])
-	result = layer('layer-b', 'mr',  fcon_a, [ 128,  27])
+	fcon_9 = layer('layer-9', 'mbr',  fcon_8, [2048, 512])
+	fcon_a = layer('layer-a', 'mt',  fcon_9, [ 512, 128])
+	result = layer('layer-b', 'mt',  fcon_a, [ 128,  27])
 	
 	return result
 
 def get_total_loss(reference, prediction):
 	mse = tf.reduce_mean(
 		tf.square(
-			tf.subtract(tf.divide(prediction,256.0),tf.divide(reference,256.0))
+			tf.subtract(prediction,reference)
 		)
 	)
 	return mse

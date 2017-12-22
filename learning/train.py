@@ -20,6 +20,7 @@ def train():
 	loss  = model.get_total_loss(coeff,guess)
 	
 	tf.summary.scalar('loss',loss)
+	tf.summary.scalar('prediction',tf.reduce_mean(guess))
 
 	operator = optimize.optimize(global_step, loss)
 

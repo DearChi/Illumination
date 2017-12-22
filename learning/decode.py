@@ -4,7 +4,6 @@ from config import *
 
 def read_data_info(eval_flag):
 
-	return 1,100
 	info = open(os.path.join(data_path,'data.info'),'r')
 	lines = info.readlines()
 	info.close()
@@ -35,7 +34,7 @@ def read(eval_flag):
 
 	image_size = image_height * image_width * image_channel
 	coeff_size = coeff_order * coeff_order * image_channel
-	example_bytes = (image_size + image_size) * 4 # size of tf.float32
+	example_bytes = (image_size + coeff_size) * 4 # size of tf.float32
 
 	reader = tf.FixedLengthRecordReader(record_bytes = example_bytes)
 	
@@ -47,6 +46,8 @@ def read(eval_flag):
 		tf.strided_slice(record,[0],[image_size]),
 		[image_height, image_width, image_channel]
 	)
+
+	image = tf.divide(image,256.0)
 
 	coeff = tf.reshape(
 		tf.strided_slice(record, [image_size], [image_size + coeff_size]),

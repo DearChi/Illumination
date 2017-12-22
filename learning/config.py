@@ -17,10 +17,10 @@ image_channel = 3
 coeff_order = 3
 
 """training"""
-tf.app.flags.DEFINE_integer('batchsize',32,
+tf.app.flags.DEFINE_integer('batchsize',64,
 	"""batchsize""")
 
-tf.app.flags.DEFINE_float('lr',0.01,
+tf.app.flags.DEFINE_float('lr',0.2,
 	"""orginal learning rate""")
 
 tf.app.flags.DEFINE_integer('nee',31000,
@@ -29,7 +29,7 @@ tf.app.flags.DEFINE_integer('nee',31000,
 tf.app.flags.DEFINE_integer('ned',4,
 	"""number of epoches per decay""")
 
-tf.app.flags.DEFINE_float('lrdf',1.0,
+tf.app.flags.DEFINE_float('lrdf',0.9,
 	"""decay factor of learning rate""")
 
 tf.app.flags.DEFINE_boolean('restart',False,
