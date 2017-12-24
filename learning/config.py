@@ -50,7 +50,7 @@ tf.app.flags.DEFINE_integer('savefreq',60,
 tf.app.flags.DEFINE_float('gpufrac',0.7,
 	"""fraction of gpu placed""")#todo 
 
-tf.app.flags.DEFINE_float('mad',0.9,
+tf.app.flags.DEFINE_float('mad',0.9999,
 	"""move decay factor""")
 
 """testing"""

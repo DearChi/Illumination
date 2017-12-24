@@ -9,7 +9,7 @@ def layer(name,layers,input,shape,strides=[1,2,2,1],padding='SAME',outshape=None
 		for layer in layers:
 			if layer == 'c':
 				kernel = tf.get_variable('kernel', shape, initializer=tf.truncated_normal_initializer(stddev=0.05))
-				biases = tf.get_variable('biases', shape[-1:-1], initializer=tf.constant_initializer(0.001))
+				biases = tf.get_variable('biases', shape[-1:-1], initializer=tf.constant_initializer(0.1))
 				result = tf.add(tf.nn.conv2d(result,kernel,strides=strides,padding=padding),biases)
 				
 			elif layer == 'r':
@@ -19,7 +19,7 @@ def layer(name,layers,input,shape,strides=[1,2,2,1],padding='SAME',outshape=None
 				result = tf.nn.tanh(result)
 			
 			elif layer == 'b':
-				mean, var = tf.nn.moments(result,[_ for _ in range(len(shape)-1)])
+				mean, var = tf.nn.moments(result,[0,1,2])
 				result = tf.nn.batch_normalization(result,mean,var,0,1,0.01)
 			
 			elif layer == 'm':
@@ -29,7 +29,7 @@ def layer(name,layers,input,shape,strides=[1,2,2,1],padding='SAME',outshape=None
 
 			elif layer == 'd':
 				kernel = tf.get_variable('filter',shape,initializer = tf.truncated_normal_initializer(stddev=0.05))
-				biases = tf.get_variable('biases',outshape[-1:-1],initializer = tf.constant_initializer(0.001))
+				biases = tf.get_variable('biases',outshape[-1:-1],initializer = tf.constant_initializer(0.1))
 				result = tf.add(tf.nn.conv2d_transpose(result,kernel,outshape,strides),biases)
 
 			elif layer == 'e':
@@ -46,7 +46,7 @@ def layer(name,layers,input,shape,strides=[1,2,2,1],padding='SAME',outshape=None
 
 		return result
 
-def inference(images):
+def inference_former(images):
 	
 	conv_1 = layer('layer-1', 'cbr', images, [7,7,3,64])
 	conv_2 = layer('layer-2', 'cbr', conv_1, [5,5,64,128])
@@ -69,7 +69,98 @@ def get_total_loss(reference, prediction):
 			tf.subtract(prediction,reference)
 		)
 	)
+	tf.summary.histogram('00SH_COEFFICIENT' + '/reference', reference)
+	tf.summary.histogram('00SH_COEFFICIENT' + '/prediction', prediction)
+
 	return mse
+
+def variable(name, shape, stddev, wd = None):
+  var = tf.get_variable(name, shape, initializer=tf.truncated_normal_initializer(stddev=stddev))
+
+  if wd is not None:
+    weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
+    tf.add_to_collection('losses', weight_decay)
+
+  return var
+
+def inference(image):
+	with tf.variable_scope('conv_1') as scope:
+		kernel = variable('kernel',[7,7,3,64],0.05)
+		biases = tf.get_variable('biases', [64], initializer=tf.constant_initializer(0.1))
+		_conv1 = tf.add(tf.nn.conv2d(image,kernel, strides=[1,2,2,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv1,[0,1,2])
+		conv_1 = tf.nn.relu(tf.nn.batch_normalization(_conv1,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv2') as scope:
+		kernel = variable('kernel',[5,5,64,128],0.05)
+		biases = tf.get_variable('biases', [128], initializer=tf.constant_initializer(0.1))
+		_conv2 = tf.add(tf.nn.conv2d(conv_1,kernel, strides=[1,2,2,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv2,[0,1,2])
+		conv_2 = tf.nn.relu(tf.nn.batch_normalization(_conv2,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv3') as scope:
+		kernel = variable('kernel',[3,3,128,256],0.05)
+		biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.1))
+		_conv3 = tf.add(tf.nn.conv2d(conv_2,kernel, strides=[1,2,2,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv3,[0,1,2])
+		conv_3 = tf.nn.relu(tf.nn.batch_normalization(_conv3,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv4') as scope:
+		kernel = variable('kernel',[3,3,256,256],0.05)
+		biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.1))
+		_conv4 = tf.add(tf.nn.conv2d(conv_3,kernel, strides=[1,1,1,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv4,[0,1,2])
+		conv_4 = tf.nn.relu(tf.nn.batch_normalization(_conv4,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv5') as scope:
+		kernel = variable('kernel',[3,3,256,256],0.05)
+		biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.1))
+		_conv5 = tf.add(tf.nn.conv2d(conv_4,kernel, strides=[1,2,2,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv5,[0,1,2])
+		conv_5 = tf.nn.relu(tf.nn.batch_normalization(_conv5,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv6') as scope:
+		kernel = variable('kernel',[3,3,256,256],0.05)
+		biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.1))
+		_conv6 = tf.add(tf.nn.conv2d(conv_5,kernel, strides=[1,1,1,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv6,[0,1,2])
+		conv_6 = tf.nn.relu(tf.nn.batch_normalization(_conv6,mean,var,0,1,0.01))
+
+	with tf.variable_scope('conv7') as scope:
+		kernel = variable('kernel',[3,3,256,256],0.05)
+		biases = tf.get_variable('biases', [256], initializer=tf.constant_initializer(0.1))
+		_conv7 = tf.add(tf.nn.conv2d(conv_6,kernel, strides=[1,2,2,1], padding='SAME'), biases)
+		mean, var = tf.nn.moments(_conv7,[0,1,2])
+		conv_7 = tf.nn.relu(tf.nn.batch_normalization(_conv7,mean,var,0,1,0.01))
+
+	reshape = tf.reshape(conv_7,[cfg.batchsize,-1])
+	dim = int(reshape.get_shape()[1])
+
+	with tf.variable_scope('fcon8') as scope:
+		weight = tf.get_variable('weight', [dim,2048], initializer=tf.truncated_normal_initializer(stddev=0.03))
+		biases = tf.get_variable('biases', [2048], initializer=tf.constant_initializer(0))
+		_fcon8 = tf.add(tf.matmul(reshape,weight),biases)
+		fcon_8 = tf.nn.relu(_fcon8)
+
+	with tf.variable_scope('fcon9') as scope:
+		weight = tf.get_variable('weight', [2048,512], initializer=tf.truncated_normal_initializer(stddev=0.03))
+		biases = tf.get_variable('biases', [512], initializer=tf.constant_initializer(0))
+		_fcon9 = tf.add(tf.matmul(fcon_8,weight),biases)
+		mean, var = tf.nn.moments(_fcon9,[0])
+		fcon_9 = tf.nn.relu(tf.nn.batch_normalization(_fcon9,mean,var,0,1,0.01))
+
+	with tf.variable_scope('fcona') as scope:
+		weight = tf.get_variable('weight', [512,128], initializer=tf.truncated_normal_initializer(stddev=0.03))
+		biases = tf.get_variable('biases', [128], initializer=tf.constant_initializer(0))
+		_fcona = tf.add(tf.matmul(fcon_9,weight),biases)
+		fcon_a = tf.nn.relu(_fcona)
+
+	with tf.variable_scope('fconb') as scope:
+		weight = tf.get_variable('weight', [128,27], initializer=tf.truncated_normal_initializer(stddev=0.03))
+		biases = tf.get_variable('biases', [27], initializer=tf.constant_initializer(0))
+		result = tf.add(tf.matmul(fcon_a,weight),biases)
+
+	return result
 """
 ------operator with shape------
   operator  shape

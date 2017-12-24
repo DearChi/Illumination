@@ -11,7 +11,7 @@ import optimize
 
 def train():
 
-	global_step = tf.contrib.framework.get_or_create_global_step()
+	global_step = tf.train.get_or_create_global_step()
 
 	image, coeff = inputs.fetch_batches(eval_flag = False)
 
