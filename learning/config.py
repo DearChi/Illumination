@@ -20,7 +20,7 @@ coeff_order = 3
 tf.app.flags.DEFINE_integer('batchsize',64,
 	"""batchsize""")
 
-tf.app.flags.DEFINE_float('lr',0.2,
+tf.app.flags.DEFINE_float('lr',0.02,
 	"""orginal learning rate""")
 
 tf.app.flags.DEFINE_integer('nee',31000,
@@ -51,11 +51,15 @@ tf.app.flags.DEFINE_float('gpufrac',0.7,
 	"""fraction of gpu placed""")#todo 
 
 tf.app.flags.DEFINE_float('mad',0.9999,
-	"""move decay factor""")
+	"""moving decay factor""")
+
+tf.app.flags.DEFINE_float('bnmad',0.999,
+	"""moving decay factor of batch norm""")
 
 """testing"""
 tf.app.flags.DEFINE_float('evalfreq',600,
 	"""frequency of testing (seconds)""" )
+
 
 cfg = tf.app.flags.FLAGS 
 

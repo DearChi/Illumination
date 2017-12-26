@@ -65,7 +65,7 @@ class BatchFileWriter(object):
 image_size = 256
 
 data_path = '/home/dearchi/workspace/cgi/simulate_video/output'
-bin_data_path = '/data/illumination/baseline/test/'
+bin_data_path = '/data/illumination/baseline/'
 
 train_set = [1,2,3,4,
 	6,7,

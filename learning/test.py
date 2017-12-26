@@ -9,13 +9,28 @@ import inputs
 import model
 import optimize
 
+def read_step():
+	loss_file = os.path.join(train_path,'tloss.txt') 
+	if tf.gfile.Exists(loss_file):
+		txt = open(loss_file,'r')
+		lines = txt.readlines()
+		txt.close()
+		return int(lines[-1].split(',')[0])
+	return 0
+def write_step(step,loss):
+	loss_file = os.path.join(test_path,'eloss.txt') 
+
+	txt = open(loss_file,'a')
+	txt.write('%10d,%f\n'%(step,loss))
+	txt.close()
+
 def eval():
 
 	lobal_step = tf.contrib.framework.get_or_create_global_step()
 
 	image, coeff = inputs.fetch_batches(eval_flag = True)
 
-	guess = model.inference(image)
+	guess = model.inference(image,is_training=False)
 
 	loss  = model.get_total_loss(coeff,guess)
 
@@ -32,7 +47,7 @@ def eval():
 		summary_merged = tf.summary.merge_all()
 		summary_writer = tf.summary.FileWriter(test_path)
 
-		step = 1
+		step = read_step()
 
 		while True:
 
@@ -57,16 +72,30 @@ def eval():
 
 			print(t1,'step =',step,'loss =',total)
 
+			write_step(step,total)
+
 			summary = sess.run(summary_merged,feed_dict={total_loss : total})
 
 			summary_writer.add_summary(summary, step)
-
-
-			step += 1
 			
 			time.sleep(cfg.evalfreq)
 
 		coord.request_stop()
 		coord.join(threads)
 		sess.close()
-eval()
+
+def work_main():
+
+	if not os.path.exists(data_path):
+		exit('Error when loading input data - Path does not exists')
+
+	if cfg.restart and tf.gfile.Exists(test_path):
+		tf.gfile.DeleteRecursively(test_path)
+
+	if not os.path.exists(test_path):
+		os.makedirs(test_path)
+	
+	eval()
+		
+
+work_main()
