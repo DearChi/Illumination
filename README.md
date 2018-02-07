@@ -1,6 +1,6 @@
-#***Predict Illumination from Image Pair (captured from smart phone)***#
+# ***Predict Illumination from Image Pair (captured from smart phone)***#
 
-###[Describe]###
+### [Describe] ###
 	Name
 		fandb : predcit illumination from [F]ront AND [B]ack image
 	Date
@@ -16,7 +16,7 @@
       	Input: two image, front and back 256x192x3
      	Output: 48 sh coefficient (3/4 orders) 16x3 coefficients
 
-###[TrainingDetail]###
+### [TrainingDetail] ###
 	TrainingSteps : 80k arround
 	Training loss : 0.07
 	Testing  loss : 0.22 around
@@ -24,23 +24,22 @@
 
 
 |--------------------------------------------------Usage--------------------------------------------------|
-v                          
-                                                                               v
-###[Dependencies]###
+v                                                                                                         v
+### [Dependencies] ###
 	For the Tr
 	InputData
     	DataPath: 
 	Record
     	RecordPath:
 
-###[Config]###
+### [Config] ###
 	config.py
 	    data_path = DataPath_Root
 		best_path = RecordPath_best
 	useit.py
 		Need specify the input image
 
-###[Usage]###
+### [Usage] ###
 	Lookup Training details
 		Tensorboard --logdir=RecordPath_train(test/best)
 		Visualize training/testint/best_loss.txt by R
