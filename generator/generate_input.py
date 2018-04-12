@@ -2,131 +2,128 @@ from PIL import Image
 from struct import *
 import matplotlib.image as plimg
 import xml.sax,re,os
-#implement xml handler
-class MovieHandler( xml.sax.ContentHandler ):
+
+class MovieHandler(xml.sax.ContentHandler):
    def __init__(self):
       self.CurrentData = ""
       self.str = ""
    def startElement(self, tag, attributes):
       self.CurrentData = tag
+
    def endElement(self, tag):
       self.CurrentData = ""
+
    def characters(self, content):
       if self.CurrentData == "data":
          self.str += content
 
-#generate sh input from xml files
-def xml2shinput(filename):
+def getSHFromXML(filename):
 	parser = xml.sax.make_parser()
-
 	parser.setFeature(xml.sax.handler.feature_namespaces, 0)
 
 	Handler = MovieHandler()
-	parser.setContentHandler( Handler )
 
+	parser.setContentHandler( Handler )
 	parser.parse(filename)
 
-	data_str = Handler.str
-	flist = []
-	aList = re.findall('([-+]?\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?',data_str) 
-	for ss in aList:
-	    flist.append(float(ss[0]+ss[2]))
-	return flist
+	string = Handler.str
+	rawSHList = re.findall('([-+]?\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?',string) 
+	return [float(sh[0]+sh[2]) for sh in rawSHList]
 
 class BatchFileWriter(object):
-	def __init__(self, prefix, postfix, max_size=500, binary = True):
+	def __init__(self, data_path, prefix, postfix, file_size=1000, binary = True):
 		self.hanlder = None
+		self.data_path = data_path
 		self.prefix = prefix
 		self.postfix = postfix
-		self.max_size = max_size
+		self.max_size = file_size
 		self.method = "wb" if binary else "w"
 
-	def write(self,string):
+	def write(self,data):
+		if not os.path.exists(self.data_path):
+			os.makedirs(self.data_path)
+
 		if self.hanlder == None:
 			self.size = 0
 			self.index = 0
-			self.hanlder = open(self.prefix+'_%03d.'%self.index + self.postfix, self.method)
+			self.hanlder = open(os.path.join(self.data_path,self.prefix+'_%03d.'%self.index + self.postfix), self.method)
 			self.index += 1
 
-		if self.size > 0 and self.size + len(string)/1024/1024 > self.max_size:
+		elif self.size > 0 and self.size + len(data)/1024/1024 > self.max_size:
 			self.size = 0
 			self.hanlder.close()
-			self.hanlder = open(self.prefix+'_%03d.'%self.index + self.postfix, self.method)
+			self.hanlder = open(os.path.join(self.data_path,self.prefix+'_%03d.'%self.index + self.postfix), self.method)
 			self.index += 1
 
-		self.hanlder.write(string)
-		self.size += len(string)/1024/1024
+		self.hanlder.write(data)
+		self.size += len(data)/1024/1024
+
+	def numberOfFiles(self):
+		return self.index
 
 	def close(self):
 		self.hanlder.close()
 
 '''-----------------------------------------------------------------------'''
+def getSHArray(data_path, index,sample):
+	xml = os.path.join(data_path,'sh','%03d'%index,'%03d.xml'%sample)
+	return getSHFromXML(xml)
 
-image_size = 256
+def getImage(data_path,index,sample,label):
+	png = os.path.join(data_path,'im','%03d'%index,'%03d_%d.png'%(sample,label))
+	image = Image.open(png)
+	return image
 
-data_path = '/home/dearchi/workspace/cgi/simulate_video/output'
-bin_data_path = '/data/illumination/baseline/'
+def getImageArray(image,out_width,out_height):
+	image = image.resize((out_width,out_height))
+	image = plimg.pil_to_array(image).reshape(out_width*out_height*3).tolist()
+	return [float(data) for data in image]
 
-train_set = [1,2,3,4,
-	6,7,
-	9,10,11,12,13,14,15,17,18,19,20,21,22,23,24,25,26,27,
-	29,30,31,32,33,34,
-	36,37,38,39,40,41,
-	43,44,45,46,47,48,49,50,51,52,53,54,55,56,
-	58,59,
-	61,
-	63,64,65,66,67,
-	69,70,71,72,73,74,75,76,
-	78,79,80,81,82,83,
-	86,87,88,89,90,
-	92,93,94,95,96,97,98
-]
-test_set = [16,35,42,60,62,68,77,84,85,91]
-num_images_per_envmap = 60
-image_length = image_size * image_size * 3
-#the max size of per binary file (MB)
 
-max_size = 1000
+def main():
+	setes = [
+		{'prefix':'train','indices':[_ + 1 for _ in range(30)],'samples':list(range(246))},
+		{'prefix':'test' ,'indices':[1,2,3,4,5],'samples':list(range(246,256))}
+	]
 
-def gen_data(prefix, image_set):
+	data_in_path = '/document/rawdata/fandb-fov60-256x256/data'
+	data_out_path = '/document/data/illumination/experiment-10x32/'
 
-	writer = BatchFileWriter(os.path.join(bin_data_path, prefix), 'bin',max_size = max_size)
+	max_file_size = 500 #MB
 
-	count = 0
-	for index in image_set:
-		print(">converting : ", index)
-		for sample in range(num_images_per_envmap):
-			print('sample',sample)
+	image_width = 256
+	image_height = 256
 
-			#write sh input file
-			shfile = os.path.join(data_path,'%02d'%index,'%02d.xml'%sample)
-			shlist = xml2shinput(shfile)
+	for group in setes:
+		numberOfExamples = 0
+		writer = BatchFileWriter(
+			data_path = data_out_path,
+			prefix=group["prefix"],
+			postfix="bin",
+			file_size=max_file_size)
 
-			#write image input file
-			imagefile  = os.path.join(data_path,'%02d'%index,'%02d_000.png'%(sample))
-			image      = Image.open(imagefile)
-			imdata     = plimg.pil_to_array(image).reshape(image_length).tolist()
+		for index in group["indices"]:
+			print(">converting : ", index)
+			for sample in group["samples"]:
+				sh = getSHArray(data_in_path, index,sample)
 
-			for d in range(image_length):
-				imdata[d] = float(imdata[d])
+				front = getImage(data_in_path, index, sample, 0)
+				bacck = getImage(data_in_path, index, sample, 1)
 
-			writer.write(
-				pack('%df27f'%image_length,*imdata, *shlist)
-			)
-			print(shlist)
-			count += 1
+				front = getImageArray(front, image_width, image_height)
+				bacck = getImageArray(bacck, image_width, image_height)
 
-	writer.close()
-	return writer.index, count
+				data_length = len(front) + len(bacck) + len(sh)
+				writer.write(
+					pack('%df'%(data_length), *front, *bacck, *sh)
+				)
+				numberOfExamples += 1
+		writer.close()
 
-if not os.path.exists(bin_data_path):
-	os.makedirs(bin_data_path)
+		#write data info
+		info = open(os.path.join(data_out_path,'data.info'),'a')
+		info.write('%d\n%d\n'%(writer.numberOfFiles(), numberOfExamples))
+		info.close()
 
-info = open(os.path.join(bin_data_path,'data.info'),'w')
-
-a,b = gen_data('train',train_set)
-c,d = gen_data('test',test_set)
-
-info.write(str(a)+'\n'+str(b)+'\n'+str(c)+'\n'+str(d)+'\n')
-
-info.close()
+if __name__ == '__main__':
+	main()

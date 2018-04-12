@@ -1,10 +1,8 @@
 import tensorflow as tf
-
 from config import *
 from decode import *
 
 def generate_batch(example, min_queue_examples, batch_size, shuffle):
-
 	num_preprocess_threads = 8
 
 	if shuffle:
@@ -32,11 +30,13 @@ def fetch_batches(eval_flag):
 
 	min_queue_examples = int(cfg.nee * 0.05)
 
-	images, coeffs = generate_batch(
+	fronts,baccks,coeffs = generate_batch(
 		data,
 		min_queue_examples,
 		batch_size = cfg.batchsize,
 		shuffle = not eval_flag
-	)
-	return images, coeffs
+	)	
+	# tf.summary.image('image',fronts)
+	# tf.summary.image('image',baccks)
+	return fronts, baccks,coeffs
 

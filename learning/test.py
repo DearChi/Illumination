@@ -7,74 +7,75 @@ import time
 
 import inputs
 import model
-import optimize
-
-def read_step():
-	loss_file = os.path.join(train_path,'tloss.txt') 
-	if tf.gfile.Exists(loss_file):
-		txt = open(loss_file,'r')
-		lines = txt.readlines()
-		txt.close()
-		return int(lines[-1].split(',')[0])
-	return 0
-def write_step(step,loss):
-	loss_file = os.path.join(test_path,'eloss.txt') 
-
-	txt = open(loss_file,'a')
-	txt.write('%10d,%f\n'%(step,loss))
-	txt.close()
+import recorder
 
 def eval():
 
-	lobal_step = tf.contrib.framework.get_or_create_global_step()
+	cfg.istraining = False
+	
+	global_step = tf.train.get_or_create_global_step()
 
-	image, coeff = inputs.fetch_batches(eval_flag = True)
+	front, bacck, coeff = inputs.fetch_batches(eval_flag = True)
 
-	guess = model.inference(image,is_training=False)
+	guess = model.inference(front,bacck,is_training=False)
 
-	loss  = model.get_total_loss(coeff,guess)
 
+	mse_loss = model.get_total_loss(coeff,guess)
 	saver = tf.train.Saver(tf.global_variables())
 
-	total_loss = tf.placeholder(dtype = tf.float32)
+	mloss_summary = tf.placeholder(dtype = tf.float32)
 
-	tf.summary.scalar('loss', total_loss)
+	tf.summary.scalar('mse_loss',mloss_summary)
 
 	with tf.Session() as sess:
+		
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
 
 		summary_merged = tf.summary.merge_all()
-		summary_writer = tf.summary.FileWriter(test_path)
+		summary_writer = tf.summary.FileWriter(os.path.join(test_path,'event'))
 
-		step = read_step()
 
 		while True:
-
+			
 			NUM_PER_EVAL = cfg.nee // cfg.batchsize
 
-			ckpt = tf.train.get_checkpoint_state(train_path)
+			ckpt = tf.train.get_checkpoint_state(os.path.join(train_path,'model'))
 
 			if ckpt and ckpt.model_checkpoint_path:
 				saver.restore(sess, ckpt.model_checkpoint_path)
-				global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+				step = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
 			else:
 				print('No checkpoint file found')
 				return
 
-			total = 0.0
+			avg_loss = [0.0]
 			for i in range(NUM_PER_EVAL):
-				total += sess.run(loss)
+				loss_value = sess.run([mse_loss])
+				for index in range(1):
+					avg_loss[index] += loss_value[index]
 
-			total /= NUM_PER_EVAL
+			for index in range(1):
+				avg_loss[index] /= NUM_PER_EVAL
 
 			t1 = datetime.now()
 
-			print(t1,'step =',step,'loss =',total)
+			print(t1,'step =',step,', mloss =',avg_loss[0])
 
-			write_step(step,total)
+			recorder.record_loss(step,avg_loss[0],avg_loss[0],avg_loss[0],1)
 
-			summary = sess.run(summary_merged,feed_dict={total_loss : total})
+
+			for index in range(1):
+				min_loss = recorder.get_min_loss(index)
+
+				if avg_loss[index] < min_loss:
+					best_model_path = os.path.join(best_path,'model_for_loss_%d'%index,'best_model')
+					if tf.gfile.Exists(best_model_path):
+						tf.gfile.DeleteRecursively(best_model_path)
+					saver.save(sess,best_model_path,global_step=step)
+					recorder.record_loss(step,avg_loss[0],avg_loss[0],avg_loss[0],2)
+
+			summary = sess.run(summary_merged,feed_dict={mloss_summary:avg_loss[0]})
 
 			summary_writer.add_summary(summary, step)
 			
@@ -92,9 +93,21 @@ def work_main():
 	if cfg.restart and tf.gfile.Exists(test_path):
 		tf.gfile.DeleteRecursively(test_path)
 
-	if not os.path.exists(test_path):
-		os.makedirs(test_path)
+	if not os.path.exists(os.path.join(test_path,'event')):
+		os.makedirs(os.path.join(test_path,'event'))
 	
+	best_model_path = os.path.join(best_path,'model_for_loss_0')
+	if not os.path.exists(best_model_path):
+		os.makedirs(best_model_path)
+
+	best_model_path = os.path.join(best_path,'model_for_loss_1')
+	if not os.path.exists(best_model_path):
+		os.makedirs(best_model_path)
+		
+	best_model_path = os.path.join(best_path,'model_for_loss_2')
+	if not os.path.exists(best_model_path):
+		os.makedirs(best_model_path)
+
 	eval()
 		
 

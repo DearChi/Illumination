@@ -8,83 +8,95 @@ import time
 import inputs
 import model
 import optimize
-
-def read_step():
-	loss_file = os.path.join(train_path,'tloss.txt') 
-	if tf.gfile.Exists(loss_file):
-		txt = open(loss_file,'r')
-		lines = txt.readlines()
-		txt.close()
-		return int(lines[-1].split(',')[0])
-	return 0
-def write_step(step,loss):
-	loss_file = os.path.join(train_path,'tloss.txt') 
-
-	txt = open(loss_file,'a')
-	txt.write('%10d,%f\n'%(step,loss))
-	txt.close()
+import recorder
+	
 def train():
 
 	global_step = tf.train.get_or_create_global_step()
 
-	image, coeff = inputs.fetch_batches(eval_flag = False)
+	front, bacck, coeff = inputs.fetch_batches(eval_flag = False)
 
-	guess = model.inference(image)
+	guess = model.inference(front,bacck)
 
-	loss  = model.get_total_loss(coeff,guess)
+	mse_loss = model.get_total_loss(coeff, guess)
 	
-	tf.summary.scalar('loss',loss)
+	tf.summary.scalar('mse_loss',mse_loss)
 
-	operator = optimize.optimize(global_step, loss)
+	operator = optimize.optimize(global_step, mse_loss)
 
-	class _LoggerHook(tf.train.SessionRunHook):
-		def begin(self):
-			self._step = read_step()
-			self._start_time = time.time()
+	with tf.Session(
+		config = tf.ConfigProto(
+			gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=cfg.gpufrac)
+		)
+	) as sess:
+		
+		# fetch input reader thread
+		coord = tf.train.Coordinator()
+		threads = tf.train.start_queue_runners(coord=coord)
 
-		def before_run(self, run_context):
-			self._step += 1
-			return tf.train.SessionRunArgs(loss)
+		# merged all summary we have defined
+		summary_merged = tf.summary.merge_all()
+		summary_writer = tf.summary.FileWriter(os.path.join(train_path,'event'))
 
-		def after_run(self, run_context, run_values):
-			if self._step % cfg.logfreq == 0:
-				duration = time.time() - self._start_time
-				self._start_time = time.time()
+		# restore the ckpt if it exist, otherwise restart training
+		ckpt = tf.train.get_checkpoint_state(os.path.join(train_path,'model'))
+		saver = tf.train.Saver(tf.global_variables())
 
-				#seconds_per_batchs
-				spb = duration / cfg.logfreq
+		if ckpt and ckpt.model_checkpoint_path:
+			sess.run(tf.variables_initializer([var for var in tf.global_variables() if var not in tf.trainable_variables()]))
+			saver.restore(sess, ckpt.model_checkpoint_path)
+			step = recorder.get_step()
+		else:
+			print('No check point file, training will be restart')
+			step = 0
+			sess.run(tf.variables_initializer(tf.global_variables()))
 
-				#examples_per_second
-				eps = cfg.batchsize // spb
+		#time recorder for computing speed of training, and controlling the save frequency.
+		last_save_time = time.time()
+		last_log_time = time.time()
 
-				loss_value = run_values.results
+		while step < cfg.maxstep:
 
-				print('%s: step %d loss=%.4lf %d examples/sec; %.3lf sec/batch'%(
-					str(datetime.now())[:19],
-					self._step,
-					loss_value,
-					eps, spb
+			step += 1  
+
+			sess.run([operator])
+
+			# log the loss
+			if step % cfg.logfreq == 0:
+				duration = time.time() - last_log_time
+				last_log_time = time.time()
+
+				seconds_per_batchs = duration / cfg.logfreq
+
+				examples_per_second = cfg.batchsize // seconds_per_batchs
+
+				mlv, summary = sess.run([mse_loss ,summary_merged])
+
+				# print('%s: step %d mse=%.4lf rloss=%.4lf loss=%.4lf %d examples/sec; %.3lf sec/batch'%(
+				# 	str(datetime.now())[:19], step, mlv,rlv,lv, examples_per_second, seconds_per_batchs
+				# ))
+
+				print('%s: step %d epoch_count=%d mse_loss=%.4lf %d examples/sec; %.3lf sec/batch'%(
+					str(datetime.now())[:19], step, step * cfg.batchsize // cfg.nee + 1, mlv, examples_per_second, seconds_per_batchs
 				))
-				write_step(self._step,loss_value)
 
-	with tf.train.MonitoredTrainingSession(
+				summary_writer.add_summary(summary, step)
 
-		checkpoint_dir=train_path,
+				#record loss to a txt file, because losses record in the summary are not sufficient to visualize by other program.
+				recorder.record_loss(step,mlv,mlv,mlv,0)
 
-		hooks=[tf.train.StopAtStepHook(last_step=cfg.maxstep),
-				tf.train.NanTensorHook(loss),
-				_LoggerHook()
-		],
+			# save the model
+			if time.time() - last_save_time >= cfg.savefreq:
+				#print('saving to ckpt....',end='')
+				saver.save(sess,os.path.join(train_path,'model','model'),global_step=step)
+				#print('done')
+				last_save_time = time.time()
 
-    	save_summaries_steps = cfg.logfreq,
+		# stop the reader queue thread
+		coord.request_stop()
+		coord.join(threads)
 
-    	save_checkpoint_secs = cfg.savefreq,
-
-		config=tf.ConfigProto(gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=cfg.gpufrac))
-
-	)as mon_sess:
-		while not mon_sess.should_stop():
-			mon_sess.run(operator)
+		sess.close()
 
 def work_main():
 
@@ -94,10 +106,13 @@ def work_main():
 	if cfg.restart and tf.gfile.Exists(train_path):
 		tf.gfile.DeleteRecursively(train_path)
 
-	if not os.path.exists(train_path):
-		os.makedirs(train_path)
+	if not os.path.exists(os.path.join(train_path,'model')):
+		os.makedirs(os.path.join(train_path,'model'))
+
+	if not os.path.exists(os.path.join(train_path,'event')):
+		os.makedirs(os.path.join(train_path,'event'))
 	
 	train()
 		
-
-work_main()
+if __name__=="__main__":
+	work_main()
